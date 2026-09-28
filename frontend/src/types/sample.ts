@@ -27,9 +27,38 @@ export interface MeteoriteSample {
   storage: StorageLocation;
   /** 备注（可选） */
   note?: string;
+  /** 分出关系：非空表示该样本是从母样分出的子样（v4 新增，旧记录为 undefined） */
+  parentSampleId?: string;
+  /** 分出时母样编号快照，母样被删除后仍可追溯来源 */
+  parentSampleNo?: string;
+  /** 分出重量 g（子样建档时的重量） */
+  splitWeight?: number;
+  /** 分出时间（毫秒时间戳） */
+  splitAt?: number;
   createdAt: number;
   /** v3 升级迁移新增字段 */
   updatedAt: number;
+}
+
+/** 分出后母样至少保留 0.1 g，避免母样被分光 */
+export const MIN_PARENT_REMAINDER = 0.1;
+
+/** 是否为子样（从母样分出的研究样） */
+export function isChildSample(sample: MeteoriteSample): boolean {
+  return Boolean(sample.parentSampleId);
+}
+
+/** 是否为母样（独立登记、未从其他样本分出） */
+export function isParentSample(sample: MeteoriteSample): boolean {
+  return !sample.parentSampleId;
+}
+
+/**
+ * 重量运算后统一保留 4 位小数，规避 1250.4 - 1235 = 15.399999999999977 一类浮点误差。
+ * 展示仍走 formatWeight 的 1 位小数。
+ */
+export function roundWeight(grams: number): number {
+  return Math.round((grams + Number.EPSILON) * 10000) / 10000;
 }
 
 export const CATEGORY_LABELS: Record<SampleCategory, string> = {

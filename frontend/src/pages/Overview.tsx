@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import {
+  Alert,
   Box,
   Button,
   Chip,
@@ -24,6 +25,7 @@ import {
   CHEMICAL_GROUP_LABELS,
   SAMPLE_CATEGORIES,
   CHEMICAL_GROUPS,
+  isChildSample,
 } from '../types/sample';
 import { formatWeight } from '../utils/format';
 
@@ -48,8 +50,37 @@ export default function Overview() {
     analysis.forEach((a) => m.set(a.sampleId, (m.get(a.sampleId) ?? 0) + 1));
     return m;
   }, [analysis]);
+  const childCount = useMemo(() => {
+    const m = new Map<string, number>();
+    samples.forEach((s) => {
+      if (s.parentSampleId) m.set(s.parentSampleId, (m.get(s.parentSampleId) ?? 0) + 1);
+    });
+    return m;
+  }, [samples]);
 
-  const totalWeight = results.reduce((n, s) => n + s.totalWeight, 0);
+  // 总览按母样（独立登记）与子样（分出研究样）分开显示
+  const parents = useMemo(() => results.filter((s) => !isChildSample(s)), [results]);
+  const children = useMemo(() => results.filter(isChildSample), [results]);
+  const parentWeight = parents.reduce((n, s) => n + s.totalWeight, 0);
+  const childWeight = children.reduce((n, s) => n + s.totalWeight, 0);
+  const allParentCount = samples.filter((s) => !isChildSample(s)).length;
+  const allChildCount = samples.filter(isChildSample).length;
+
+  const renderCards = (list: typeof results) => (
+    <Grid container spacing={2}>
+      {list.map((s) => (
+        <Grid item xs={12} sm={6} md={4} lg={3} key={s.id}>
+          <SampleCard
+            sample={s}
+            find={findBySample.get(s.id)}
+            sectionCount={sectionCount.get(s.id) ?? 0}
+            analysisCount={analysisCount.get(s.id) ?? 0}
+            childCount={childCount.get(s.id) ?? 0}
+          />
+        </Grid>
+      ))}
+    </Grid>
+  );
 
   return (
     <Stack spacing={2.5}>
@@ -57,7 +88,8 @@ export default function Overview() {
         <Box>
           <Typography variant="h4">样本总览</Typography>
           <Typography variant="body2" color="text.secondary">
-            共 {total} 份样本，当前筛选命中 {results.length} 份，合计 {formatWeight(totalWeight)}
+            共 {total} 份样本（母样 {allParentCount} · 子样 {allChildCount}），当前筛选命中{' '}
+            {results.length} 份
           </Typography>
         </Box>
         <Button component={RouterLink} to="/samples/new" variant="contained" startIcon={<AddIcon />}>
@@ -186,18 +218,39 @@ export default function Overview() {
           onAction={samples.length === 0 ? undefined : ui.reset}
         />
       ) : (
-        <Grid container spacing={2}>
-          {results.map((s) => (
-            <Grid item xs={12} sm={6} md={4} lg={3} key={s.id}>
-              <SampleCard
-                sample={s}
-                find={findBySample.get(s.id)}
-                sectionCount={sectionCount.get(s.id) ?? 0}
-                analysisCount={analysisCount.get(s.id) ?? 0}
-              />
-            </Grid>
-          ))}
-        </Grid>
+        <Stack spacing={2.5}>
+          <Box>
+            <Stack direction="row" alignItems="baseline" spacing={1.5} sx={{ mb: 1.5 }}>
+              <Typography variant="h6">母样</Typography>
+              <Chip size="small" label={`${parents.length} 份`} variant="outlined" />
+              <Typography variant="body2" color="text.secondary">
+                筛选命中合计 {formatWeight(parentWeight)}（剩余重量）
+              </Typography>
+            </Stack>
+            {parents.length === 0 ? (
+              <Alert severity="info">当前筛选条件下没有母样。</Alert>
+            ) : (
+              renderCards(parents)
+            )}
+          </Box>
+
+          <Box>
+            <Stack direction="row" alignItems="baseline" spacing={1.5} sx={{ mb: 1.5 }}>
+              <Typography variant="h6">分出子样</Typography>
+              <Chip size="small" color="secondary" label={`${children.length} 份`} variant="outlined" />
+              <Typography variant="body2" color="text.secondary">
+                筛选命中合计 {formatWeight(childWeight)}（分取重量，已从母样扣减）
+              </Typography>
+            </Stack>
+            {children.length === 0 ? (
+              <Alert severity="info">
+                还没有子样。打开母样详情，使用「分出子样」填写编号、分取重量与存放位置即可建档。
+              </Alert>
+            ) : (
+              renderCards(children)
+            )}
+          </Box>
+        </Stack>
       )}
     </Stack>
   );

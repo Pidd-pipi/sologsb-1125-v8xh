@@ -15,6 +15,8 @@ interface SampleCardProps {
   find?: FindRecord;
   sectionCount?: number;
   analysisCount?: number;
+  /** 母样已分出的子样数量（>0 时显示“已分出 N”） */
+  childCount?: number;
   to?: string;
 }
 
@@ -24,10 +26,13 @@ export function SampleCard({
   find,
   sectionCount = 0,
   analysisCount = 0,
+  childCount = 0,
   to,
 }: SampleCardProps) {
+  const isChild = Boolean(sample.parentSampleId);
   const missing: string[] = [];
-  if (!find) missing.push('缺坐标');
+  // 子样为研究分样，发现地随母样，不单独提示缺坐标
+  if (!find && !isChild) missing.push('缺坐标');
   if (sectionCount === 0) missing.push('缺切片');
 
   return (
@@ -51,16 +56,29 @@ export function SampleCard({
           <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
             <Box>
               <Typography variant="overline" color="text.secondary" lineHeight={1.2}>
-                样本编号
+                {isChild ? '子样编号' : '样本编号'}
               </Typography>
               <Typography variant="h6" fontWeight={700} letterSpacing="0.02em">
                 {sample.sampleNo}
               </Typography>
             </Box>
-            <Typography variant="h6" fontWeight={700} color="primary.main" whiteSpace="nowrap">
-              {formatWeight(sample.totalWeight)}
-            </Typography>
+            <Stack alignItems="flex-end" spacing={0.5}>
+              <Typography variant="h6" fontWeight={700} color="primary.main" whiteSpace="nowrap">
+                {formatWeight(sample.totalWeight)}
+              </Typography>
+              {isChild ? (
+                <Chip size="small" color="secondary" variant="outlined" label="子样" />
+              ) : childCount > 0 ? (
+                <Chip size="small" color="primary" variant="outlined" label={`已分出 ${childCount}`} />
+              ) : null}
+            </Stack>
           </Stack>
+
+          {isChild ? (
+            <Typography variant="body2" color="secondary.main" fontWeight={600}>
+              来源母样：{sample.parentSampleNo}
+            </Typography>
+          ) : null}
 
           <ClassificationBadge category={sample.category} group={sample.chemicalGroup} />
 
@@ -69,7 +87,12 @@ export function SampleCard({
           </Typography>
 
           <Typography variant="body2" color="text.secondary">
-            发现地：{find ? `${find.region} · ${find.placeName}` : '未登记'}
+            发现地：
+            {find
+              ? `${find.region} · ${find.placeName}`
+              : isChild
+                ? '随母样登记'
+                : '未登记'}
           </Typography>
 
           {find ? (

@@ -12,6 +12,8 @@ export const DB_NAME = 'gbmeteorite-db';
  *  - v1：建 samples / finds / sections 三张表
  *  - v2：新增 analysis 表，并为 analysis 加 sampleId 索引
  *  - v3：为 samples 补 updatedAt 字段，并按 id 回填旧记录
+ *  - v4：为 samples 补 parentSampleId 索引，支持母样/子样分出关系
+ *       （新字段全部可选，旧记录无需搬运数据，缺省即母样）
  */
 export class MeteoriteDB extends Dexie {
   samples!: Table<MeteoriteSample, string>;
@@ -65,6 +67,16 @@ export class MeteoriteDB extends Dexie {
             }
           });
       });
+
+    this.version(4)
+      .stores({
+        samples:
+          'id, sampleNo, category, chemicalGroup, totalWeight, createdAt, updatedAt, parentSampleId',
+        finds: 'id, sampleId, region, createdAt',
+        sections: 'id, sectionNo, sampleId, thickness, createdAt',
+        analysis: 'id, sampleId, sectionId, method, testedAt, createdAt',
+      });
+    // v4 只新增可选字段与索引：旧记录没有 parentSampleId，读取时按母样处理，无需 upgrade 搬运
   }
 }
 
@@ -86,15 +98,32 @@ export async function seedIfEmpty(): Promise<void> {
       {
         id: 'sample_seed_1',
         sampleNo: 'MET-2024-001',
-        totalWeight: 1250.4,
+        totalWeight: 1225.0,
         category: 'chondrite',
         chemicalGroup: 'H',
         weathering: 'W1',
         fallOrFind: 'find',
         storage: 'cabinet-a',
-        note: '撒哈拉回收，熔壳完整',
+        note: '撒哈拉回收，熔壳完整；已分出研究样 MET-2024-001-A',
         createdAt: now - 86400000 * 40,
-        updatedAt: now - 86400000 * 40,
+        updatedAt: now - 86400000 * 20,
+      },
+      {
+        id: 'sample_seed_1_child',
+        sampleNo: 'MET-2024-001-A',
+        totalWeight: 25.4,
+        category: 'chondrite',
+        chemicalGroup: 'H',
+        weathering: 'W1',
+        fallOrFind: 'find',
+        storage: 'desiccator',
+        note: '电子探针研究样',
+        parentSampleId: 'sample_seed_1',
+        parentSampleNo: 'MET-2024-001',
+        splitWeight: 25.4,
+        splitAt: now - 86400000 * 20,
+        createdAt: now - 86400000 * 20,
+        updatedAt: now - 86400000 * 20,
       },
       {
         id: 'sample_seed_2',

@@ -2,8 +2,22 @@ import { create } from 'zustand';
 import { db, makeId, seedIfEmpty } from '../db';
 import type { AnalysisRecord } from '../types/analysis';
 import type { FindRecord } from '../types/find';
-import type { MeteoriteSample } from '../types/sample';
+import {
+  MIN_PARENT_REMAINDER,
+  roundWeight,
+  type MeteoriteSample,
+  type StorageLocation,
+} from '../types/sample';
 import type { ThinSection } from '../types/section';
+
+/** 分出子样的入参：编号、分取重量、存放位置（其余属性继承母样） */
+export interface SplitChildInput {
+  parentId: string;
+  sampleNo: string;
+  splitWeight: number;
+  storage: StorageLocation;
+  note?: string;
+}
 
 export interface SampleState {
   samples: MeteoriteSample[];
@@ -16,6 +30,7 @@ export interface SampleState {
   addSample: (input: Omit<MeteoriteSample, 'id' | 'createdAt' | 'updatedAt'>) => Promise<string>;
   updateSample: (id: string, patch: Partial<MeteoriteSample>) => Promise<void>;
   removeSample: (id: string) => Promise<void>;
+  splitChildSample: (input: SplitChildInput) => Promise<string>;
   addFind: (input: Omit<FindRecord, 'id' | 'createdAt'>) => Promise<string>;
   addSection: (input: Omit<ThinSection, 'id' | 'createdAt'>) => Promise<string>;
   updateSection: (id: string, patch: Partial<ThinSection>) => Promise<void>;
@@ -76,6 +91,74 @@ export const useSampleStore = create<SampleState>((set, get) => ({
       sections: get().sections.filter((s) => s.sampleId !== id),
       analysis: get().analysis.filter((a) => a.sampleId !== id),
     });
+  },
+
+  splitChildSample: async (input) => {
+    const sampleNo = input.sampleNo.trim();
+    const weight = Number(input.splitWeight);
+
+    // 事务外先做静态校验；母样状态、编号唯一、重量扣减在事务内复查并落库
+    if (!sampleNo) throw new Error('子样编号不能为空');
+    if (!Number.isFinite(weight) || weight <= 0) {
+      throw new Error('分取重量需大于 0 g');
+    }
+
+    let childId = '';
+    await db.transaction('rw', db.samples, async () => {
+      const parent = await db.samples.get(input.parentId);
+      if (!parent) throw new Error('母样不存在或已被删除');
+      if (parent.parentSampleId) {
+        throw new Error('研究子样不能再次分出，请到最初的母样详情操作');
+      }
+
+      const dup = await db.samples.where('sampleNo').equals(sampleNo).first();
+      if (dup) throw new Error(`编号「${sampleNo}」已存在，同一编号不能重复`);
+
+      const remainder = roundWeight(parent.totalWeight - weight);
+      if (remainder < 0) {
+        throw new Error(`分取重量超过母样剩余重量（剩余 ${parent.totalWeight} g），无法保存`);
+      }
+      if (remainder < MIN_PARENT_REMAINDER) {
+        throw new Error(
+          `分取后母样仅剩 ${remainder} g，低于最少保留 ${MIN_PARENT_REMAINDER} g，无法保存`,
+        );
+      }
+
+      const now = Date.now();
+      childId = makeId('sample');
+      const child: MeteoriteSample = {
+        id: childId,
+        sampleNo,
+        totalWeight: roundWeight(weight),
+        category: parent.category,
+        chemicalGroup: parent.chemicalGroup,
+        weathering: parent.weathering,
+        fallOrFind: parent.fallOrFind,
+        storage: input.storage,
+        note: input.note?.trim() || undefined,
+        parentSampleId: parent.id,
+        parentSampleNo: parent.sampleNo,
+        splitWeight: roundWeight(weight),
+        splitAt: now,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await db.samples.add(child);
+      await db.samples.update(parent.id, {
+        totalWeight: remainder,
+        updatedAt: now,
+      });
+
+      set((state) => ({
+        samples: [
+          child,
+          ...state.samples.map((s) =>
+            s.id === parent.id ? { ...s, totalWeight: remainder, updatedAt: now } : s,
+          ),
+        ],
+      }));
+    });
+    return childId;
   },
 
   addFind: async (input) => {

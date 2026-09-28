@@ -40,16 +40,16 @@ docker compose down
 
 | 路由 | 说明 | 消费模型 |
 | --- | --- | --- |
-| `/` | 样本总览：卡片流 + 分类/化学群/重量区间筛选与排序，缺坐标或缺切片显示角标 | MeteoriteSample |
+| `/` | 样本总览：母样 / 分出子样分区卡片流 + 分类/化学群/重量区间筛选与排序，缺坐标或缺切片显示角标 | MeteoriteSample |
 | `/samples/new` | 样本登记：编号生成、分类化学群、重量、存放位置，可补录发现地坐标并即时校验 | MeteoriteSample、FindRecord |
-| `/samples/:id` | 样本详情：基本信息 + 发现地摘要 + 切片列表 + 分析记录，可就地新增 | 四个模型 |
+| `/samples/:id` | 样本详情：母样可「分出子样」（扣减剩余重量并记录分出关系），子样可追溯来源母样；另有发现地摘要、切片列表与分析记录 | 四个模型 |
 | `/sections` | 切片库：按厚度与矿物占比筛选，回跳样本，批量标注质量 | ThinSection、MeteoriteSample |
 | `/analysis` | 分析检测：录入 Fa / Fs / Ni / 铁纹石带宽，实时分类建议与阈值命中说明 | AnalysisRecord、MeteoriteSample |
 | `/locations` | 发现地分布：SVG 网格按经纬度打点、按分类着色、点选弹出样本清单 | FindRecord、MeteoriteSample |
 
 ## 数据模型（`src/types/` 独立文件）
 
-- `types/sample.ts` — **MeteoriteSample**：id、样本编号、总重量 g、分类、化学群、风化等级 W0–W4、发现/坠落、存放位置
+- `types/sample.ts` — **MeteoriteSample**：id、样本编号、总重量 g（母样为剩余重量，子样为分取重量）、分类、化学群、风化等级 W0–W4、发现/坠落、存放位置；子样额外携带 `parentSampleId` / `parentSampleNo` / `splitWeight` / `splitAt` 分出关系（均为可选字段，旧记录缺省即母样）
 - `types/find.ts` — **FindRecord**：id、关联样本、地名、国家地区、经纬度、坐标来源（GPS/文献）、发现环境、发现者
 - `types/section.ts` — **ThinSection**：id、切片编号、关联样本、厚度 μm、制样方式、矿物占比、显微照片清单
 - `types/analysis.ts` — **AnalysisRecord**：id、关联样本或切片、方法、橄榄石 Fa、辉石 Fs、Ni wt%、铁纹石带宽 mm、检测日期
@@ -87,8 +87,10 @@ sologsb-1125/
   - v1 建 `samples` / `finds` / `sections`
   - v2 新增 `analysis` 表并加 `sampleId` 索引
   - v3 为 `samples` 补 `updatedAt` 字段并按 id 回填旧记录
+  - v4 为 `samples` 补 `parentSampleId` 索引以支持母样/子样关系（纯加索引，旧记录无需搬运，打开即按母样处理）
+- **分出子样规则**：在母样详情填写子样编号、分取重量、存放位置后，于单个 Dexie 事务内完成建档与母样扣减；编号全库唯一，分取重量不得超过母样剩余重量，分取后母样至少保留 0.1 g，任一不满足则整体回滚
 - **草稿**：`/samples/new` 与 `/analysis` 的表单草稿写入 localStorage（键前缀 `gbmeteorite:draft:`），切页自动恢复，提交后清理
-- 首次打开会灌入 3 份演示样本、2 条发现记录、2 张切片与 2 条检测记录，便于直接体验筛选与打点
+- 首次打开会灌入 3 份演示样本（其中 MET-2024-001 已带一个分出子样）、2 条发现记录、2 张切片与 2 条检测记录，便于直接体验筛选与打点
 
 ## 环境变量
 
