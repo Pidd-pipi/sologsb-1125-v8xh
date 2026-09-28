@@ -1,11 +1,12 @@
 import { useMemo } from 'react';
 import type { MeteoriteSample } from '../types/sample';
+import { isChildSample } from '../types/sample';
 import { useSampleStore } from '../stores/sampleStore';
 import { useUiStore } from '../stores/uiStore';
 
 /**
  * 管理分类、化学群、重量区间与关键词筛选并返回结果集。
- * 被 / 与 /sections 消费。
+ * 被 / 与 /sections 消费。结果按母样 / 子样分开，便于总览分区展示。
  */
 export function useSampleFilter(override?: Partial<{ category: string; group: string }>) {
   const samples = useSampleStore((s) => s.samples);
@@ -16,7 +17,7 @@ export function useSampleFilter(override?: Partial<{ category: string; group: st
   const keyword = useUiStore((s) => s.keyword);
   const sort = useUiStore((s) => s.sort);
 
-  const results = useMemo(() => {
+  const { parentResults, childResults, results } = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
     const list = samples.filter((s) => {
       if (categories.length && !categories.includes(s.category)) return false;
@@ -31,12 +32,23 @@ export function useSampleFilter(override?: Partial<{ category: string; group: st
       }
       return true;
     });
-    return sortSamples(list, sort);
+    const sorted = sortSamples(list, sort);
+    const parents: MeteoriteSample[] = [];
+    const children: MeteoriteSample[] = [];
+    sorted.forEach((s) => (isChildSample(s) ? children.push(s) : parents.push(s)));
+    return { parentResults: parents, childResults: children, results: sorted };
   }, [samples, categories, groups, minWeight, maxWeight, keyword, sort, override?.category, override?.group]);
+
+  const parentTotal = useMemo(() => samples.filter((s) => !isChildSample(s)).length, [samples]);
+  const childTotal = useMemo(() => samples.filter(isChildSample).length, [samples]);
 
   return {
     results,
+    parentResults,
+    childResults,
     total: samples.length,
+    parentTotal,
+    childTotal,
     activeCount:
       categories.length +
       groups.length +

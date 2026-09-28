@@ -138,7 +138,7 @@ export default function Analysis() {
                   >
                     {samples.map((s) => (
                       <MenuItem key={s.id} value={s.id}>
-                        {s.sampleNo}
+                        {s.parentId ? `${s.sampleNo}（子样）` : s.sampleNo}
                       </MenuItem>
                     ))}
                   </Select>

@@ -3,6 +3,7 @@ import {
   Box,
   Button,
   Chip,
+  Divider,
   FormControl,
   Grid,
   InputLabel,
@@ -29,7 +30,8 @@ import { formatWeight } from '../utils/format';
 
 /** `/` 样本总览 */
 export default function Overview() {
-  const { results, total, activeCount } = useSampleFilter();
+  const { results, parentResults, childResults, total, parentTotal, childTotal, activeCount } =
+    useSampleFilter();
   const samples = useSampleStore((s) => s.samples);
   const finds = useSampleStore((s) => s.finds);
   const sections = useSampleStore((s) => s.sections);
@@ -37,6 +39,7 @@ export default function Overview() {
 
   const ui = useUiStore();
 
+  const sampleMap = useMemo(() => new Map(samples.map((s) => [s.id, s])), [samples]);
   const findBySample = useMemo(() => new Map(finds.map((f) => [f.sampleId, f])), [finds]);
   const sectionCount = useMemo(() => {
     const m = new Map<string, number>();
@@ -57,7 +60,8 @@ export default function Overview() {
         <Box>
           <Typography variant="h4">样本总览</Typography>
           <Typography variant="body2" color="text.secondary">
-            共 {total} 份样本，当前筛选命中 {results.length} 份，合计 {formatWeight(totalWeight)}
+            母样 {parentTotal} 份 · 子样 {childTotal} 份，共 {total} 份；当前筛选命中{' '}
+            {results.length} 份，合计重量（母样剩余 + 子样）{formatWeight(totalWeight)}
           </Typography>
         </Box>
         <Button component={RouterLink} to="/samples/new" variant="contained" startIcon={<AddIcon />}>
@@ -186,18 +190,67 @@ export default function Overview() {
           onAction={samples.length === 0 ? undefined : ui.reset}
         />
       ) : (
-        <Grid container spacing={2}>
-          {results.map((s) => (
-            <Grid item xs={12} sm={6} md={4} lg={3} key={s.id}>
-              <SampleCard
-                sample={s}
-                find={findBySample.get(s.id)}
-                sectionCount={sectionCount.get(s.id) ?? 0}
-                analysisCount={analysisCount.get(s.id) ?? 0}
+        <Stack spacing={3}>
+          <Box>
+            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+              <Typography variant="h6">母样</Typography>
+              <Chip size="small" label={`${parentResults.length} 份`} variant="outlined" />
+              <Typography variant="caption" color="text.secondary">
+                重量为扣减分样后的剩余重量，可在详情页继续分出子样
+              </Typography>
+            </Stack>
+            {parentResults.length === 0 ? (
+              <EmptyState
+                title="没有符合条件的母样"
+                description="可放宽筛选条件；新登记的样本会作为母样显示在这里。"
+                compact
               />
-            </Grid>
-          ))}
-        </Grid>
+            ) : (
+              <Grid container spacing={2}>
+                {parentResults.map((s) => (
+                  <Grid item xs={12} sm={6} md={4} lg={3} key={s.id}>
+                    <SampleCard
+                      sample={s}
+                      find={findBySample.get(s.id)}
+                      sectionCount={sectionCount.get(s.id) ?? 0}
+                      analysisCount={analysisCount.get(s.id) ?? 0}
+                    />
+                  </Grid>
+                ))}
+              </Grid>
+            )}
+          </Box>
+
+          <Divider />
+
+          <Box>
+            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+              <Typography variant="h6">分出子样</Typography>
+              <Chip size="small" color="secondary" label={`${childResults.length} 份`} variant="outlined" />
+              <Typography variant="caption" color="text.secondary">
+                由母样分取，编号独立、重量与母样剩余不重复计
+              </Typography>
+            </Stack>
+            {childResults.length === 0 ? (
+              <EmptyState
+                title="还没有分出子样"
+                description="打开任一母样详情，使用「分出子样」填写子样编号、分取重量与存放位置。"
+                compact
+              />
+            ) : (
+              <Grid container spacing={2}>
+                {childResults.map((s) => (
+                  <Grid item xs={12} sm={6} md={4} lg={3} key={s.id}>
+                    <SampleCard
+                      sample={s}
+                      parentSampleNo={s.parentId ? sampleMap.get(s.parentId)?.sampleNo : undefined}
+                    />
+                  </Grid>
+                ))}
+              </Grid>
+            )}
+          </Box>
+        </Stack>
       )}
     </Stack>
   );

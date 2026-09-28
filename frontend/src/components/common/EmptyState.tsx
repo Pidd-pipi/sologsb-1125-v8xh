@@ -8,6 +8,8 @@ interface EmptyStateProps {
   actionLabel?: string;
   actionTo?: string;
   onAction?: () => void;
+  /** 紧凑模式：用于分区内嵌的空态 */
+  compact?: boolean;
 }
 
 /** 空态提示与新建入口：被 /、/sections、/analysis 消费 */
@@ -17,11 +19,12 @@ export function EmptyState({
   actionLabel,
   actionTo,
   onAction,
+  compact = false,
 }: EmptyStateProps) {
   return (
     <Box
       sx={{
-        py: 7,
+        py: compact ? 3.5 : 7,
         px: 3,
         textAlign: 'center',
         border: '1px dashed',
@@ -31,8 +34,8 @@ export function EmptyState({
       }}
     >
       <Stack spacing={1.5} alignItems="center">
-        <InboxOutlinedIcon sx={{ fontSize: 44, color: 'text.disabled' }} />
-        <Typography variant="h6">{title}</Typography>
+        <InboxOutlinedIcon sx={{ fontSize: compact ? 34 : 44, color: 'text.disabled' }} />
+        <Typography variant={compact ? 'subtitle1' : 'h6'}>{title}</Typography>
         {description ? (
           <Typography variant="body2" color="text.secondary" maxWidth={520}>
             {description}

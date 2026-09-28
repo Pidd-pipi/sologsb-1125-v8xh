@@ -3,6 +3,7 @@ import type { MeteoriteSample } from '../types/sample';
 import type { FindRecord } from '../types/find';
 import type { ThinSection } from '../types/section';
 import type { AnalysisRecord } from '../types/analysis';
+import type { SplitRecord } from '../types/split';
 
 /** 库名固定为 gbmeteorite-db */
 export const DB_NAME = 'gbmeteorite-db';
@@ -12,12 +13,14 @@ export const DB_NAME = 'gbmeteorite-db';
  *  - v1：建 samples / finds / sections 三张表
  *  - v2：新增 analysis 表，并为 analysis 加 sampleId 索引
  *  - v3：为 samples 补 updatedAt 字段，并按 id 回填旧记录
+ *  - v4：新增 splits 分出关系表，samples 加 parentId 索引；旧样本无该字段，自动按母样处理
  */
 export class MeteoriteDB extends Dexie {
   samples!: Table<MeteoriteSample, string>;
   finds!: Table<FindRecord, string>;
   sections!: Table<ThinSection, string>;
   analysis!: Table<AnalysisRecord, string>;
+  splits!: Table<SplitRecord, string>;
 
   constructor() {
     super(DB_NAME);
@@ -65,6 +68,16 @@ export class MeteoriteDB extends Dexie {
             }
           });
       });
+
+    this.version(4).stores({
+      samples:
+        'id, sampleNo, category, chemicalGroup, totalWeight, createdAt, updatedAt, parentId',
+      finds: 'id, sampleId, region, createdAt',
+      sections: 'id, sectionNo, sampleId, thickness, createdAt',
+      analysis: 'id, sampleId, sectionId, method, testedAt, createdAt',
+      splits: 'id, parentId, childId, createdAt',
+    });
+    // v4 无需 upgrade 回填：旧样本没有 parentId，读取时按母样（undefined）处理
   }
 }
 

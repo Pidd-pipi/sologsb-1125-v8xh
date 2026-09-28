@@ -50,7 +50,9 @@ const NAV = [
 export default function AppShell({ children }: { children: ReactNode }) {
   const loadAll = useSampleStore((s) => s.loadAll);
   const loaded = useSampleStore((s) => s.loaded);
-  const sampleCount = useSampleStore((s) => s.samples.length);
+  const samples = useSampleStore((s) => s.samples);
+  const parentCount = samples.filter((s) => !s.parentId).length;
+  const childCount = samples.length - parentCount;
   const toast = useToastStore();
   const location = useLocation();
 
@@ -74,7 +76,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </Typography>
             <Chip
               size="small"
-              label={`本地档案 ${sampleCount} 份样本`}
+              label={`母样 ${parentCount} · 子样 ${childCount}`}
               sx={{ bgcolor: 'rgba(255,255,255,0.14)', color: '#f5efe4' }}
             />
             <Box sx={{ flex: 1 }} />

@@ -27,9 +27,19 @@ export interface MeteoriteSample {
   storage: StorageLocation;
   /** 备注（可选） */
   note?: string;
+  /**
+   * 子样的来源母样 id（v4 分出子样功能新增）：
+   * 有值表示该样本是从母样分出来的子样；undefined 的旧记录一律视为母样。
+   */
+  parentId?: string;
   createdAt: number;
   /** v3 升级迁移新增字段 */
   updatedAt: number;
+}
+
+/** 是否为子样（由母样分出） */
+export function isChildSample(sample: MeteoriteSample): boolean {
+  return typeof sample.parentId === 'string' && sample.parentId.length > 0;
 }
 
 export const CATEGORY_LABELS: Record<SampleCategory, string> = {
